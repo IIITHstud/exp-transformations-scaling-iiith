@@ -230,64 +230,66 @@ spanEditModal.onclick = function () {
   modalEdit.style.display = "none";
 };
 
-document.addEventListener("pointermove", (event) => {
-  const rect = renderer.domElement.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
+// document.addEventListener("pointermove", (event) => {
+//   const rect = renderer.domElement.getBoundingClientRect();
+//   const x = event.clientX - rect.left;
+//   const y = event.clientY - rect.top;
 
-  mouse.x = (x / container.clientWidth) * 2 - 1;
-  mouse.y = (y / container.clientHeight) * -2 + 1;
-  if (mouse.x < 1 && mouse.x > -1 && mouse.y < 1 && mouse.y > -1) {
-    raycaster.setFromCamera(mouse, camera);
-    if (isDragging && lock === 0) {
-      for (let i = 0; i < shapes.length; i++) {
-        raycaster.ray.intersectPlane(plane, planeIntersect);
-        shapes[i].geometry.vertices[0].set(
-          planeIntersect.x + shift.x,
-          planeIntersect.y + shift.y,
-          planeIntersect.z + shift.z
-        );
-        shapes[i].geometry.verticesNeedUpdate = true;
-        shapeVertex[i].position.set(
-          planeIntersect.x + shift.x - dragX[i],
-          planeIntersect.y + shift.y - dragY[i],
-          planeIntersect.z + shift.z - dragZ[i]
-        );
-      }
-      raycaster.ray.intersectPlane(plane, planeIntersect);
-    } else if (isDragging) {
-      raycaster.ray.intersectPlane(plane, planeIntersect);
-    }
-  }
-});
-document.addEventListener("pointerdown", () => {
-  switch (event.which) {
-    case 1:
-      const rect = renderer.domElement.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
+//   mouse.x = (x / container.clientWidth) * 2 - 1;
+//   mouse.y = (y / container.clientHeight) * -2 + 1;
+//   if (mouse.x < 1 && mouse.x > -1 && mouse.y < 1 && mouse.y > -1) {
+//     raycaster.setFromCamera(mouse, camera);
+//     if (isDragging && lock === 0) {
+//       for (let i = 0; i < shapes.length; i++) {
+//         raycaster.ray.intersectPlane(plane, planeIntersect);
+//         shapes[i].geometry.vertices[0].set(
+//           planeIntersect.x + shift.x,
+//           planeIntersect.y + shift.y,
+//           planeIntersect.z + shift.z
+//         );
+//         shapes[i].geometry.verticesNeedUpdate = true;
+//         shapeVertex[i].position.set(
+//           planeIntersect.x + shift.x - dragX[i],
+//           planeIntersect.y + shift.y - dragY[i],
+//           planeIntersect.z + shift.z - dragZ[i]
+//         );
+//       }
+//       raycaster.ray.intersectPlane(plane, planeIntersect);
+//     } else if (isDragging) {
+//       raycaster.ray.intersectPlane(plane, planeIntersect);
+//     }
+//   }
+// });
+// document.addEventListener("pointerdown", () => {
+//   switch (event.which) {
+//     case 1:
+//       const rect = renderer.domElement.getBoundingClientRect();
+//       const x = event.clientX - rect.left;
+//       const y = event.clientY - rect.top;
 
-      mouse.x = (x / container.clientWidth) * 2 - 1;
-      mouse.y = (y / container.clientHeight) * -2 + 1;
-      pNormal.copy(camera.position).normalize();
-      plane.setFromNormalAndCoplanarPoint(pNormal, scene.position);
-      raycaster.setFromCamera(mouse, camera);
-      raycaster.ray.intersectPlane(plane, planeIntersect);
-      let position = new THREE.Vector3(
-        shapeVertex[0].position.x,
-        shapeVertex[0].position.y,
-        shapeVertex[0].position.z
-      );
-      shift.subVectors(position, planeIntersect);
-      isDragging = true;
-      dragObject = shapes[shapes.length - 1];
-      break;
-  }
-});
-document.addEventListener("pointerup", () => {
-  isDragging = false;
-  dragObject = null;
-});
+//       mouse.x = (x / container.clientWidth) * 2 - 1;
+//       mouse.y = (y / container.clientHeight) * -2 + 1;
+//       pNormal.copy(camera.position).normalize();
+//       plane.setFromNormalAndCoplanarPoint(pNormal, scene.position);
+//       raycaster.setFromCamera(mouse, camera);
+//       raycaster.ray.intersectPlane(plane, planeIntersect);
+//       let position = new THREE.Vector3(
+//         shapeVertex[0].position.x,
+//         shapeVertex[0].position.y,
+//         shapeVertex[0].position.z
+//       );
+//       shift.subVectors(position, planeIntersect);
+//       isDragging = true;
+//       dragObject = shapes[shapes.length - 1];
+//       break;
+//   }
+// });
+// document.addEventListener("pointerup", () => {
+//   isDragging = false;
+//   dragObject = null;
+// });
+
+
 function movePoint(e) {
   var target = e.target ? e.target : e.srcElement;
   let scale = new Array();
@@ -305,6 +307,27 @@ function movePoint(e) {
     old_scale[i] = scale[i];
 
   trans_matrix.multiply(scale_m);
+    shapes.forEach((shape) => {
+      shape.geometry.applyMatrix4(scale_m);
+
+      // Update geometry attributes
+      if (shape.geometry.isBufferGeometry) {
+        shape.geometry.attributes.position.needsUpdate = true;
+        shape.geometry.computeBoundingBox();
+        shape.geometry.computeVertexNormals();
+      }
+
+      // Update edges
+      shape.traverse((child) => {
+        if (child.isLineSegments) {
+          child.geometry.applyMatrix4(scale_m);
+          if (child.geometry.isBufferGeometry) {
+            child.geometry.attributes.position.needsUpdate = true;
+          }
+        }
+      });
+    });
+
 
   if (target.value <= 0) {
     trans_matrix.set(
@@ -426,6 +449,9 @@ let init = function () {
   camera.position.z = 5;
   camera.position.x = 2;
   camera.position.y = 2;
+  const light = new THREE.DirectionalLight(0xffffff, 3);
+  light.position.set(1, 1, 1).normalize();
+  scene.add(light);
   const gridHelper = new THREE.GridHelper(size, divisions);
   const count = 1;
   dir[0] = new THREE.Vector3(1, 0, 0);
